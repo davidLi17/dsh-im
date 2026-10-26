@@ -80,7 +80,7 @@ function errorUnavailableReason(error) {
 function mergeDefined(base, loaded) {
   const merged = { ...base };
   for (const key of [
-    'messageId', 'authorId', 'authorName', 'content', 'attachments', 'unavailableReason',
+    'messageId', 'authorId', 'authorName', 'content', 'attachments', 'unavailableReason', 'images',
   ]) {
     if (loaded[key] !== undefined) merged[key] = loaded[key];
   }
@@ -138,11 +138,37 @@ export function hasReplyReference(message) {
   return objectReference(message?.replyTo);
 }
 
-export async function promptContentForInboundMessage(message, { signal, deferImages = false } = {}) {
-  if (!hasReplyReference(message)) {
-    return promptContentForMessage(message, { signal, deferImages });
+function mergedImageSources(current, quoted) {
+  const sources = [];
+  const seen = new Set();
+  for (const source of [...(Array.isArray(current) ? current : []),
+    ...(Array.isArray(quoted) ? quoted : [])]) {
+    if (!source) continue;
+    const identity = typeof source.dedupeKey === 'string' && source.dedupeKey
+      ? source.dedupeKey : source;
+    if (seen.has(identity)) continue;
+    seen.add(identity);
+    sources.push(source);
   }
-  const reference = normalizeReference(await resolveReference(message.replyTo, signal));
-  const currentContent = await promptContentForMessage(message, { signal, deferImages });
-  return [{ type: 'text', text: replyBlock(reference) }, ...currentContent];
+  return sources;
+}
+
+/** Keep trusted lazy image sources out of the serialized, untrusted quote. */
+export async function prepareInboundPrompt(message, { signal, deferImages = false } = {}) {
+  const resolved = hasReplyReference(message)
+    ? await resolveReference(message.replyTo, signal) : null;
+  const currentImages = Array.isArray(message?.images) ? message.images.filter(Boolean) : [];
+  const images = resolved && !resolved.unavailableReason && resolved.images?.length
+    ? mergedImageSources(currentImages, resolved.images) : currentImages;
+  const content = await promptContentForMessage({ ...message, images }, { signal, deferImages });
+  return {
+    content: resolved
+      ? [{ type: 'text', text: replyBlock(normalizeReference(resolved)) }, ...content]
+      : content,
+    images,
+  };
+}
+
+export async function promptContentForInboundMessage(message, options) {
+  return (await prepareInboundPrompt(message, options)).content;
 }

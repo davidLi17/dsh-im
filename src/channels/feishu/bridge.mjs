@@ -24,7 +24,7 @@ import {
 } from '../shared/image-prompt.mjs';
 import {
   hasReplyReference,
-  promptContentForInboundMessage,
+  prepareInboundPrompt,
 } from '../shared/semantic/reply-reference.mjs';
 import {
   hasInboundFiles,
@@ -5387,9 +5387,10 @@ export class FeishuHarnessBridge {
     const snapshot = this.#acceptedMessageIds.get(event.message.message_id);
     const build = async (input) => {
       const rich = hasInboundImages(input) || hasReplyReference(input);
-      const original = rich
-        ? await promptContentForInboundMessage(input, { signal: this.#signal, deferImages: true })
-        : input.content;
+      const prepared = rich
+        ? await prepareInboundPrompt(input, { signal: this.#signal, deferImages: true })
+        : { content: input.content, images: [] };
+      const original = prepared.content;
       const enhanced = enhanceContextContent(original, snapshot, () => ({
         channel: 'feishu',
         senderId: senderOpenId(event),
@@ -5400,6 +5401,7 @@ export class FeishuHarnessBridge {
         content: rich || enhanced !== original ? enhanced : undefined,
         contextEnhanced: enhanced !== original,
         sourceGuidance: snapshot?.config?.guidance,
+        images: prepared.images,
       };
     };
     const rootId = nonEmptyString(event.message.root_id);
@@ -5420,6 +5422,9 @@ export class FeishuHarnessBridge {
       prepareContent: async ({ sessionId }) => {
         preparedSessionId = sessionId;
         anchorLoaded = false;
+        // askOptions holds this array already. Reset it on every binding retry,
+        // then add the anchor's images only when that session needs its quote.
+        base.images.splice(0, base.images.length, ...(message.images ?? []));
         const previous = this.#topicAnchors.get(key);
         if (previous?.sessionId === sessionId && previous.rootMessageId === rootId) {
           return base.content ?? message.content;
@@ -5437,6 +5442,7 @@ export class FeishuHarnessBridge {
             },
           },
         });
+        base.images.splice(0, base.images.length, ...prepared.images);
         return prepared.content;
       },
       onAskComplete: (sessionId) => {
@@ -5523,7 +5529,7 @@ export class FeishuHarnessBridge {
     // /stop 打标：回合进行中收到停止请求时，封存为「已停止」而非「已完成」。
     const stepStopFlag = streamingCard ? { requested: false } : null;
     if (streamingCard) this.#stepStopFlags.set(key, stepStopFlag);
-    const baseAskOptions = this.#interactionAskOptions(event, key, message.files, message.images);
+    const baseAskOptions = this.#interactionAskOptions(event, key, message.files, prompt.images);
 
     // 上下文注入动作在详细级别下也体现为一条步骤（注入细节可忽略）。
     // 不计入工具/助手消息的熔断计数（规格口径：熔断只管「工具 + 助手」）。
@@ -5835,7 +5841,7 @@ export class FeishuHarnessBridge {
         contextEnhanced,
         createOptions: { signal: this.#signal },
         existsOptions: { signal: this.#signal },
-        askOptions: this.#interactionAskOptions(event, key, message.files, message.images),
+        askOptions: this.#interactionAskOptions(event, key, message.files, prompt.images),
       });
       markAskComplete(sessionId);
       let textReceipt;
@@ -5880,7 +5886,7 @@ export class FeishuHarnessBridge {
       stream = await this.#channel.stream(chatId, {
         markdown: async (controller) => {
           promptStarted = true;
-          const baseAskOptions = this.#interactionAskOptions(event, key, message.files, message.images);
+          const baseAskOptions = this.#interactionAskOptions(event, key, message.files, prompt.images);
           const askOptions = {
             ...baseAskOptions,
             // issue #86：独立交互消息（提问/审批）会落在占位卡下方，呈现前
@@ -5995,7 +6001,7 @@ export class FeishuHarnessBridge {
         contextEnhanced,
         createOptions: { signal: this.#signal },
         existsOptions: { signal: this.#signal },
-        askOptions: this.#interactionAskOptions(event, key, message.files, message.images),
+        askOptions: this.#interactionAskOptions(event, key, message.files, prompt.images),
       });
       markAskComplete(sessionId);
       let textReceipt;

@@ -170,7 +170,9 @@ After the model calls the file-return tool, the plugin hands the specified file 
 
 ## Installation
 
-### davidLi17 Feishu fix build (5.6.0-lhg.1)
+### davidLi17 Feishu fix build (5.6.0-lhg.2)
+
+This build sends same-chat quoted images and rich-post images with the current question through the existing image admission pipeline, sharing count/size limits, resizing and original-file fallback for models without vision. It does not fetch cross-chat media, recurse through reply chains or download quoted ordinary files. The previous QR-link authorization and safe diagnostics fixes remain intact.
 
 These fork-specific fixes are not published to npm. In the DSH Desktop terminal, run:
 

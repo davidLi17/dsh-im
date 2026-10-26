@@ -389,8 +389,8 @@ test('Feishu reply reference marks unreadable interactive cards as unsupported',
   }
 });
 
-test('Feishu reply reference falls back to root_id and keeps quoted media as metadata only', async () => {
-  let resourceDownloads = 0;
+test('Feishu reply reference keeps root post image loaders lazy and bound to the quoted message', async () => {
+  const resourceDownloads = [];
   const event = {
     message: {
       message_id: 'om_current',
@@ -417,9 +417,9 @@ test('Feishu reply reference falls back to root_id and keeps quoted media as met
         }],
       },
     }) },
-    messageResource: { get: async () => {
-      resourceDownloads += 1;
-      throw new Error('quoted media must not be downloaded');
+    messageResource: { get: async (request) => {
+      resourceDownloads.push(request);
+      return { getReadableStream: () => Readable.from([PNG_1X1]) };
     } },
   } } };
 
@@ -427,7 +427,29 @@ test('Feishu reply reference falls back to root_id and keeps quoted media as met
   assert.equal(reply.messageId, 'om_root');
   assert.equal(reply.content, '原消息\n请比较截图');
   assert.deepEqual(reply.attachments, [{ kind: 'image' }, { kind: 'image' }]);
-  assert.equal(resourceDownloads, 0);
+  assert.deepEqual(resourceDownloads, []);
+  assert.equal(reply.images.length, 2);
+  for (const image of reply.images) assert.deepEqual(await image.load({ maxBytes: 1024 }), PNG_1X1);
+  assert.deepEqual(resourceDownloads, ['img_one', 'img_two'].map((file_key) => ({
+    path: { message_id: 'om_root', file_key }, params: { type: 'image' },
+  })));
+});
+
+test('quoted ordinary files remain metadata only even when their filename looks like an image', async () => {
+  const client = { im: { v1: {
+    message: { get: async () => ({ data: { items: [{
+      message_id: 'om_file', chat_id: 'oc_same', msg_type: 'file',
+      body: { content: JSON.stringify({ file_key: 'file_secret', file_name: 'screenshot.png' }) },
+    }] } }) },
+    messageResource: { get: () => assert.fail('quoted ordinary files must not download') },
+  } } };
+  const reply = await extractInboundMessage({ message: {
+    message_id: 'om_current', parent_id: 'om_file', chat_id: 'oc_same',
+    message_type: 'text', content: '{"text":"这是什么"}',
+  } }, client).replyTo.load();
+  assert.deepEqual(reply.attachments, [{ kind: 'file', name: 'screenshot.png' }]);
+  assert.equal(reply.images, undefined);
+  assert.equal(reply.files, undefined);
 });
 
 test('Feishu reply lookup degrades deleted, foreign, and permission failures', async (t) => {

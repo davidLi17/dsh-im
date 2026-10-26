@@ -1101,6 +1101,153 @@ test('bridge downloads an inbound Feishu image once and submits structured Harne
   assert.deepEqual(sent, ['看到了一张图片']);
 });
 
+for (const mode of ['text', 'stream', 'steps', 'fallback']) {
+  test(`bridge delivers a quoted Feishu image through deferred image admission (${mode})`, async () => {
+    const fixture = stateFixture([['p2p:ou_user', 'session-quoted-image']]);
+    const downloaded = [];
+    const asked = [];
+    const client = textClient(async () => {});
+    client.im.v1.message.get = async () => ({ code: 0, data: { items: [{
+      message_id: 'om_old_image', chat_id: 'oc_chat', msg_type: 'image',
+      sender: { sender_name: '图片作者' },
+      body: { content: JSON.stringify({ image_key: 'img_old' }) },
+      parent_id: 'om_do_not_recurse',
+    }] } });
+    client.im.v1.messageResource = { get: async (request) => {
+      downloaded.push(request);
+      return { getReadableStream: () => Readable.from([PNG_1X1]) };
+    } };
+    const channel = mode === 'text' ? {} : {
+      stream: async (_chatId, callbacks) => {
+        if (mode === 'fallback') throw new Error('stream unavailable');
+        await callbacks.markdown({ setContent: async () => {} });
+        return { messageId: 'om_stream_answer' };
+      },
+    };
+    const bridge = new FeishuHarnessBridge({
+      client, channel, state: fixture.state, status: bridgeStatus(),
+      allowedSenderOpenIds: new Set(['ou_user']), stepPush: mode === 'steps',
+      logger: { info() {}, warn() {}, error() {} },
+      harness: {
+        sessionExists: async () => true,
+        ask: async (_sessionId, content, options) => {
+          assert.equal(options.images.length, 1, 'quoted images must reach the real image admission entrypoint');
+          assert.deepEqual(options.files ?? [], [], 'do not forward quoted ordinary files');
+          asked.push(await loadDeferredImages(content, options));
+          return '看到了引用图片';
+        },
+      },
+    });
+    await bridge.accept(event('om_current_image_question', '这是啥？', { parent_id: 'om_old_image' }));
+    await bridge.waitForIdle();
+    assert.equal(asked.length, 1);
+    assert.deepEqual(downloaded, [{
+      path: { message_id: 'om_old_image', file_key: 'img_old' }, params: { type: 'image' },
+    }]);
+    assert.equal(asked[0].filter((part) => part.type === 'image').length, 1);
+    assert.match(asked[0][0].text, /图片作者/u);
+    assert.match(asked[0][0].text, /"kind":"image"/u);
+    assert.doesNotMatch(asked[0][0].text, /img_old|dedupeKey|load|om_do_not_recurse/u);
+    assert.deepEqual(asked[0][1], { type: 'text', text: '这是啥？' });
+  });
+}
+
+test('bridge merges current and quoted rich-post images current-first without duplicate downloads', async () => {
+  const fixture = stateFixture([['p2p:ou_user', 'session-quoted-post']]);
+  const downloaded = [];
+  const asked = [];
+  const client = textClient(async () => {});
+  const post = (title, keys) => JSON.stringify({ title,
+    content: [keys.map((image_key) => ({ tag: 'img', image_key }))] });
+  client.im.v1.message.get = async () => ({ data: { items: [{
+    message_id: 'om_old_post', chat_id: 'oc_chat', msg_type: 'post',
+    body: { content: post('old post', ['img_shared', 'img_old', 'img_old']) },
+  }] } });
+  client.im.v1.messageResource = { get: async (request) => {
+    downloaded.push(request.path);
+    return { getReadableStream: () => Readable.from([PNG_1X1]) };
+  } };
+  const bridge = new FeishuHarnessBridge({
+    client, channel: {}, state: fixture.state, status: bridgeStatus(),
+    allowedSenderOpenIds: new Set(['ou_user']),
+    harness: {
+      sessionExists: async () => true,
+      ask: async (_sessionId, content, options) => {
+        asked.push(await loadDeferredImages(content, options));
+        return '相比之前';
+      },
+    },
+  });
+  await bridge.accept(event('om_current_post', '', {
+    message_type: 'post', content: post('比较这些图', ['img_current', 'img_shared']),
+    parent_id: 'om_old_post',
+  }));
+  await bridge.waitForIdle();
+  assert.deepEqual(downloaded, [
+    { message_id: 'om_current_post', file_key: 'img_current' },
+    { message_id: 'om_current_post', file_key: 'img_shared' },
+    { message_id: 'om_old_post', file_key: 'img_old' },
+  ]);
+  assert.equal(asked[0].filter((part) => part.type === 'image').length, 3);
+  assert.match(asked[0][0].text, /old post/u);
+});
+
+for (const [name, item, unavailableReason] of [
+  ['foreign chat', { chat_id: 'oc_secret' }, 'not-found'],
+  ['missing chat identity', { chat_id: undefined }, 'not-found'],
+  ['deleted image', { deleted: true }, 'deleted'],
+]) {
+  test(`bridge denies quoted image downloads for ${name}`, async () => {
+    const fixture = stateFixture([['p2p:ou_user', 'session-denied-quote']]);
+    const asked = [];
+    let downloads = 0;
+    const client = textClient(async () => {});
+    client.im.v1.message.get = async () => ({ data: { items: [{
+      message_id: 'om_old_image', chat_id: 'oc_chat', msg_type: 'image',
+      body: { content: '{"image_key":"img_secret"}' }, ...item,
+    }] } });
+    client.im.v1.messageResource = { get: () => { downloads += 1; assert.fail('forbidden download'); } };
+    const bridge = new FeishuHarnessBridge({
+      client, channel: {}, state: fixture.state, status: bridgeStatus(),
+      allowedSenderOpenIds: new Set(['ou_user']),
+      harness: { sessionExists: async () => true, ask: async (_sessionId, content, options) => {
+        asked.push(await loadDeferredImages(content, options)); return '引用图片不可用';
+      } },
+    });
+    await bridge.accept(event('om_current_question', '这是啥？', { parent_id: 'om_old_image' }));
+    await bridge.waitForIdle();
+    assert.equal(downloads, 0);
+    assert.equal(asked.length, 1);
+    assert.match(asked[0][0].text, new RegExp(`"unavailableReason":"${unavailableReason}"`, 'u'));
+    assert.doesNotMatch(JSON.stringify(asked), /img_secret|oc_secret/u);
+    assert.deepEqual(asked[0][1], { type: 'text', text: '这是啥？' });
+  });
+}
+
+test('quoted image download failures use the existing safe image failure notice', async () => {
+  const fixture = stateFixture([['p2p:ou_user', 'session-failed-quote']]);
+  const sent = [];
+  const client = textClient(async (outgoing) => sent.push(outgoing.text));
+  client.im.v1.message.get = async () => ({ data: { items: [{
+    message_id: 'om_old_image', chat_id: 'oc_chat', msg_type: 'image',
+    body: { content: '{"image_key":"img_old"}' },
+  }] } });
+  client.im.v1.messageResource = { get: async () => { throw new Error('secret-provider-response'); } };
+  let submitted = 0;
+  const bridge = new FeishuHarnessBridge({
+    client, channel: {}, state: fixture.state, status: bridgeStatus(),
+    allowedSenderOpenIds: new Set(['ou_user']), logger: { warn() {}, error() {} },
+    harness: { sessionExists: async () => true, ask: async (_sessionId, content, options) => {
+      await loadDeferredImages(content, options); submitted += 1; return 'must not run without its image';
+    } },
+  });
+  await bridge.accept(event('om_failed_question', '这是啥？', { parent_id: 'om_old_image' }));
+  await bridge.waitForIdle();
+  assert.equal(submitted, 0);
+  assert.match(sent.join('\n'), /图片下载失败，请重新发送后再试/u);
+  assert.doesNotMatch(sent.join('\n'), /secret-provider-response/u);
+});
+
 test('bridge resolves a Feishu CardKit reply only at prompt time and keeps quoted commands as data', async () => {
   const fixture = stateFixture([['p2p:ou_user', 'session-reply']]);
   const lookups = [];
@@ -12941,7 +13088,73 @@ for (const mode of ['text', 'stream', 'steps', 'fallback']) {
     assert.equal(hasAnchor(f.asked[1].text), false);
     assert.deepEqual(f.reads, ['om_root']);
   });
+
+  test(`topic anchor images follow delayed session preparation and explicit replies still expand (${mode})`, async () => {
+    const f = topicAnchorFixture({ mode });
+    const downloaded = [];
+    const get = f.client.im.v1.message.get;
+    f.client.im.v1.message.get = async (request) => {
+      const response = await get(request);
+      response.data.items[0].msg_type = 'post';
+      response.data.items[0].body.content = JSON.stringify({
+        title: `REPORT:${request.path.message_id}`,
+        content: [[{ tag: 'img', image_key: 'img_anchor' }]],
+      });
+      return response;
+    };
+    f.client.im.v1.messageResource = { get: async (request) => {
+      downloaded.push(request.path.message_id);
+      return { getReadableStream: () => Readable.from([PNG_1X1]) };
+    } };
+    const contents = [];
+    f.harness.ask = async (_sessionId, content, options) => {
+      contents.push(await loadDeferredImages(content, options));
+      return 'answer';
+    };
+    await f.send();
+    await f.send();
+    await f.state.clearSession('group:oc_group:thread:omt_anchor');
+    await f.send();
+    await f.send('explicit old image', { parent_id: 'om_other_image' });
+    await f.send('explicit again', { parent_id: 'om_other_image' });
+    assert.equal(contents.length, 5);
+    assert.deepEqual(contents.map((content) => Array.isArray(content)
+      ? content.filter((part) => part.type === 'image').length : 0), [1, 0, 1, 1, 1]);
+    assert.deepEqual(downloaded, ['om_root', 'om_root', 'om_other_image', 'om_other_image']);
+    assert.deepEqual(f.reads, downloaded);
+  });
 }
+
+test('stale topic binding retries refresh the already-captured image array for the new session', async () => {
+  const f = topicAnchorFixture();
+  f.client.im.v1.message.get = async (request) => ({ data: { items: [{
+    message_id: request.path.message_id, chat_id: 'oc_group', msg_type: 'image',
+    body: { content: '{"image_key":"img_anchor"}' },
+  }] } });
+  let downloads = 0;
+  f.client.im.v1.messageResource = { get: async () => {
+    downloads += 1;
+    return { getReadableStream: () => Readable.from([PNG_1X1]) };
+  } };
+  const admitted = [];
+  let stale = false;
+  f.harness.ask = async (_sessionId, content, options) => {
+    if (stale) {
+      stale = false;
+      assert.equal(options.images.length, 0, 'the old session already knows its anchor');
+      await f.state.clearSession('group:oc_group:thread:omt_anchor');
+      throw Object.assign(new Error('workspace moved'), { code: 'workspace-session-stale' });
+    }
+    admitted.push(await loadDeferredImages(content, options));
+    return 'answer';
+  };
+  await f.send();
+  stale = true;
+  await f.send();
+  assert.equal(admitted.length, 2);
+  assert.equal(downloads, 2);
+  for (const content of admitted) assert.equal(content.filter((part) => part.type === 'image').length, 1);
+});
 
 for (const command of ['/help', '/new']) {
   test(`topic ${command} does not consume the first AI prompt's anchor`, async () => {

@@ -6,6 +6,20 @@ This file records the notable changes in each dsh-im release. Its format follows
 
 ## [Unreleased]
 
+## [5.6.0-lhg.2] - 2026-10-26
+
+### Fixed / 修复（davidLi17 fork）
+
+- 飞书引用旧图片或富文本多图时，图片原内容随当前问题进入既有 Harness 图片通道，不再只告诉模型“引用里有图片”。保留作者、正文与附件摘要；当前图片优先，重复图片去重，共用数量、原图大小、模型总量预算、缩放及不支持图片模型的原图文件降级。
+  Feishu quoted images and rich-post images now reach the existing Harness image pipeline with the current question, rather than only a textual attachment summary. Author/text metadata remains available; current images come first, duplicates are removed, and all images share existing admission limits, resizing and original-file fallback.
+- 保留同聊天身份校验、群历史访问门禁及按会话注入话题根引用的语义；跨聊天、身份缺失或已删除引用不下载图片。不递归读取引用链、不下载被引用的普通文件。下载失败沿用可理解且脱敏的图片错误提示，上一版二维码授权链接与安全诊断修复保持不变。
+  Same-chat identity checks, group-history access gates and once-per-session topic-anchor semantics remain intact. Foreign, unidentified or deleted references cannot trigger image downloads. Reply chains and ordinary quoted files are not downloaded; image failures retain safe actionable notices, and the previous QR authorization and diagnostic fixes are preserved.
+
+### Notes / 使用说明
+
+- 仅用于 davidLi17 fork，未发布到 npm。安装时显式指定本 fork 的 Git 引用；重启 Host 后重新引用原图片提问，旧的已完成回合不会自动补图。不增加飞书权限，不更改用户配置。
+  This is a davidLi17 fork-only build, not an npm release. Install the explicit fork Git reference, restart the Host and ask again by quoting the image; completed turns are not retroactively updated. No new Feishu permissions or user configuration changes are introduced.
+
 ## [5.6.0-lhg.1] - 2026-10-26
 
 ### Fixed / 修复（davidLi17 fork）

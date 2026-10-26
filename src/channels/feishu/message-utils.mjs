@@ -435,6 +435,9 @@ async function feishuResourceStream(event, client, key, type, { signal, maxBytes
 
 function feishuImageSource(event, client, key) {
   return {
+    // Internal identity only: the same provider image can appear in both the
+    // current post and its quote. Never serialize resource keys into the prompt.
+    dedupeKey: JSON.stringify(['feishu', event.message.chat_id, key]),
     async load({ signal, maxBytes }) {
       const stream = await feishuResourceStream(event, client, key, 'image', { signal, maxBytes });
       return readBoundedStream(stream, { signal, maxBytes });
@@ -529,6 +532,7 @@ function feishuReplyReference(event, client) {
       const quotedEvent = {
         message: {
           message_id: messageId,
+          chat_id: itemChatId,
           message_type: messageType,
           content: item.body?.content,
           mentions: item.mentions ?? [],
@@ -549,6 +553,9 @@ function feishuReplyReference(event, client) {
           : {}),
         ...(content ? { content } : {}),
         attachments,
+        // Preserve lazy image loaders only after validating the chat identity.
+        // Do not expand ordinary files or follow the quoted message's own reply.
+        ...(quoted.images.length ? { images: quoted.images } : {}),
         ...(messageType === 'interactive' && !content && attachments.length === 0
           ? { unavailableReason: 'unsupported' }
           : {}),
