@@ -484,7 +484,7 @@ test('shared context RPC payload validator rejects unknown keys and incomplete s
 for (const [channel, createHandler, endpoints] of CHANNELS.filter(([name]) => (
   !['slack', 'telegram', 'discord'].includes(name)
 ))) {
-  test(`${channel} QR/status projection failure happens before a context save commits`, async (t) => {
+  test(`${channel} QR/status projection failure or cancellation happens before a context save commits`, async (t) => {
     const { path, store } = await fixture(t);
     const botId = `${channel}_projection`;
     await store.ensure(botId);
@@ -505,6 +505,9 @@ for (const [channel, createHandler, endpoints] of CHANNELS.filter(([name]) => (
       async encodeQr() {
         projections += 1;
         assert.equal(store.contextEnhancementFor(botId), previous);
+        // Feishu can continue via its official URL when only the image fails.
+        // A cancelled projection must still abort before any settings commit.
+        if (channel === 'feishu') throw new DOMException('QR rendering cancelled', 'AbortError');
         throw new Error('QR rendering unavailable');
       },
     });

@@ -60,7 +60,8 @@ function qrImage(result) {
   return result.value?.qrCodeDataUrl ?? result.value?.provisioning?.qrCodeDataUrl;
 }
 
-for (const channel of Object.keys(factories)) {
+// Feishu's recoverable image failures and cache are covered in feishu/qr-fallback.test.mjs.
+for (const channel of Object.keys(factories).filter(channel => channel !== 'feishu')) {
   for (const synchronous of [true, false]) {
     test(`${channel}: ${synchronous ? 'thrown' : 'rejected'} QR failure remains diagnosable and the same attempt can retry`, async () => {
       let calls = 0;
@@ -164,6 +165,9 @@ for (const channel of Object.keys(factories)) {
     assert.equal(calls, before);
   });
 
+}
+
+for (const channel of Object.keys(factories)) {
   test(`${channel}: the real default encoder still produces a decodable PNG`, async () => {
     const fx = fixture(channel);
     const result = await fx.handler('provision.begin', {});

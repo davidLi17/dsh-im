@@ -1,14 +1,26 @@
+import { connectionStageError } from '../shared/connection-error.mjs';
+
 function endpointFor(domain, path) {
   const origin = domain === 'lark' ? 'https://open.larksuite.com' : 'https://open.feishu.cn';
   return new URL(path, origin);
 }
 
+function verificationError(message, code, providerCode) {
+  const error = new Error(message);
+  error.code = code;
+  if (providerCode !== undefined) error.providerCode = providerCode;
+  return connectionStageError(error, 'credential.verify');
+}
+
 function jsonResponse(body, operation) {
-  if (!body || typeof body !== 'object' || Array.isArray(body)) {
-    throw new Error(`${operation} returned a non-JSON response`);
+  if (!body || typeof body !== 'object' || Array.isArray(body)
+    || !Number.isSafeInteger(body.code)) {
+    throw verificationError(`${operation} returned an invalid response`, 'invalid-response');
   }
   if (body.code !== 0) {
-    throw new Error(`${operation} failed: ${body.msg || `code ${body.code}`}`);
+    // Preserve the documented numeric code without reflecting provider text or
+    // response data, which can contain credentials, into errors or diagnostics.
+    throw verificationError(`${operation} failed`, 'provider-rejected', body.code);
   }
   return body;
 }
@@ -34,7 +46,7 @@ export async function verifyFeishuApp({
     timeout: timeoutMs,
   }), 'Feishu authentication');
   if (!tokenBody.tenant_access_token) {
-    throw new Error('Feishu authentication returned no tenant access token');
+    throw verificationError('Feishu authentication returned no tenant access token', 'invalid-response');
   }
 
   const botBody = jsonResponse(await httpInstance.request({

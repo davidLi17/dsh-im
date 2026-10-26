@@ -6,6 +6,20 @@ This file records the notable changes in each dsh-im release. Its format follows
 
 ## [Unreleased]
 
+## [5.6.0-lhg.1] - 2026-10-26
+
+### Fixed / 修复（davidLi17 fork）
+
+- 飞书新增机器人、补全权限与回调、群消息授权中，二维码图片编码失败不再阻断整轮授权：保留经过校验的官方授权链接、当前尝试与轮询，稍后可重新生成图片。保留取消、过期、目标域校验与脱敏诊断，不输出原始异常文本或凭据。对应 [#450](https://github.com/xmanrui/dsh-im/issues/450) 的图片失败场景；不宣称修复所有 Desktop 二维码编码底层原因。
+  Feishu provisioning and permission updates retain the validated official authorization link and polling when QR image encoding fails. Cancellation, expiry, domain checks, retry behavior and redacted diagnostics remain intact. This addresses the blocked-flow scenario in [#450](https://github.com/xmanrui/dsh-im/issues/450), not every underlying Desktop QR encoder failure.
+- 飞书凭据验证保留平台返回的安全数字错误码及验证阶段，不再把这些拒绝统一归为 `unknown`；服务端原始消息与响应数据不进入错误。改善 [#459](https://github.com/xmanrui/dsh-im/issues/459) 一类通用连接失败的排查信息，不把未确认的账号、权限或网络原因标记为已解决。
+  Feishu credential verification retains safe numeric provider error codes and the verification stage without reflecting raw provider messages or response data. This improves diagnosis of generic failures such as [#459](https://github.com/xmanrui/dsh-im/issues/459); unconfirmed account, permission or network causes are not claimed as fixed.
+
+### Notes / 使用说明
+
+- 仅用于 davidLi17 fork，未发布到 npm。保留原插件包名、已有配置、群消息/附件归档及文件回传行为；安装时显式指定本 fork 的 Git 引用，重启 Host 并刷新管理页。
+  Fork-only build, not published to npm. Package identity, existing configuration, group/attachment archives and file delivery behavior are unchanged. Explicitly select this fork by its Git ref, then restart the Host and refresh management pages.
+
 ## [5.6.0] - 2026-10-24
 
 ### Added / 新增

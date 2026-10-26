@@ -610,24 +610,32 @@ export function createFeishuRpcHandler(controller, { encodeQr = qrCodeDataUrl } 
   assertController(controller);
   const qrCache = new Map();
   const attemptQr = new Map();
-  const cachedEncodeQr = (url) => {
-    let encoded = qrCache.get(url);
-    if (!encoded) {
-      if (qrCache.size >= 32) qrCache.delete(qrCache.keys().next().value);
-      encoded = Promise.resolve().then(() => encodeQr(url)).catch(error => {
-        if (qrCache.get(url) === encoded) qrCache.delete(url);
-        throw qrEncodingError(error);
-      });
-      qrCache.set(url, encoded);
-    }
-    return encoded;
-  };
 
   return async (endpoint, payload, signal) => {
     if (signal?.aborted) return cancelled();
     if (!FEISHU_RPC_ENDPOINTS.includes(endpoint)) return badRequest('Unknown Feishu endpoint.');
     const payloadFailure = validPayload(endpoint, payload);
     if (payloadFailure) return badRequest(payloadFailure);
+
+    const cachedEncodeQr = (url) => {
+      let encoded = qrCache.get(url);
+      if (!encoded) {
+        if (qrCache.size >= 32) qrCache.delete(qrCache.keys().next().value);
+        encoded = Promise.resolve().then(() => encodeQr(url)).catch(error => {
+          if (qrCache.get(url) === encoded) qrCache.delete(url);
+          if (error?.name === 'AbortError') throw error;
+          // The validated authorization URL is sufficient to finish this attempt.
+          // Image generation must not turn a working SDK registration into a failure.
+          diagnostics.report(qrEncodingError(error), {
+            operation: endpoint, botId: payload?.botId, attemptId: payload?.attemptId,
+            warning: true, automatic: true,
+          });
+          return undefined;
+        });
+        qrCache.set(url, encoded);
+      }
+      return encoded;
+    };
 
     try {
       let value;

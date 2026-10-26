@@ -242,7 +242,6 @@ test('selecting all group messages opens the official permission flow before sav
           operation: 'group_message_permission',
           botId: 'bot_group_permission',
           verificationUrl: 'https://open.feishu.cn/page/launcher?tp=sdk&clientID=cli_permission&addons=encoded',
-          qrCodeDataUrl: 'data:image/png;base64,AAAA',
           expiresAt: Date.now() + 60_000,
           pollIntervalMs: 800,
         },
@@ -280,6 +279,7 @@ test('selecting all group messages opens the official permission flow before sav
   });
   assert.equal(permissionPanel.findByType('a').props.href,
     'https://open.feishu.cn/page/launcher?tp=sdk&clientID=cli_permission&addons=encoded');
+  assert.match(textOf(permissionPanel), /二维码未就绪，请打开授权链接/);
   assert.match(textOf(permissionPanel), /只增量开通“获取群组中所有消息”权限/);
   assert.equal(renderer.root.findByProps({ 'aria-label': '群聊响应方式' }).props.value, 'mention');
   await act(async () => renderer.unmount());

@@ -170,6 +170,16 @@ After the model calls the file-return tool, the plugin hands the specified file 
 
 ## Installation
 
+### davidLi17 Feishu fix build (5.6.0-lhg.1)
+
+These fork-specific fixes are not published to npm. In the DSH Desktop terminal, run:
+
+```sh
+dsh plugin --profile desktop add -w 'github:davidLi17/dsh-im#main'
+```
+
+For DSH Web, replace `desktop` with `web`. To pin a verified revision, replace `main` with the verified commit SHA. Use the official DSH plugin command above; the original `dsh-im install` wrapper still defaults to upstream unless `--source` is supplied. Restart the corresponding DSH Host and refresh management pages. If the QR image fails, use the official authorization link to continue the same attempt. Do not disable package integrity checks or globally allow dependency scripts. The npm commands below install the upstream stable release, not this fork's fixes.
+
 Install the published stable release of **`@xmanrui/dsh-im`** from npm (recommended). Choose the command for the application you use:
 
 **DSH Desktop**: run in the current Desktop application's built-in terminal:
