@@ -173,17 +173,21 @@ WhatsApp、飞书、Telegram、Discord、Slack、QQ 支持自动保存实际收�
 
 ## 安装
 
-### davidLi17 飞书修复版（5.6.0-lhg.2）
+### davidLi17 定制同步版（5.7.0-lhg.1）
 
 本版修复飞书引用旧图片时只传入文字摘要的问题：同一聊天中引用的单图、富文本图片会随当前问题进入既有图片通道，共用数量、大小、缩放及模型不支持图片时的原图文件降级。不读取跨聊天图片、不递归展开引用链，也不自动下载被引用的普通文件；保留上一版二维码链接授权与安全错误诊断。
 
-本 fork 的飞书修复未发布到 npm。DSH Desktop 内置终端可执行：
+本版还同步上游 v5.7.0 的飞书停止等待上限、QQ 超时补发、企微重连退避、Slack Markdown 回退和 qs 更新。
+
+本 fork 未发布到 npm。**DSH Desktop 推荐在插件管理 UI 中选择 Git 来源 `github:davidLi17/dsh-im#main`**。需要命令行管理桌面配置时，必须使用该 Desktop 安装自带的 CLI，并先完全退出 App；通过 npm 安装的 `dsh` 不代表具有桌面 profile 管理能力。
+
+DSH Web 在启动当前 Harness 的终端环境中执行：
 
 ```sh
-dsh plugin --profile desktop add -w 'github:davidLi17/dsh-im#main'
+dsh plugin --profile web add -w 'github:davidLi17/dsh-im#main'
 ```
 
-DSH Web 将 `desktop` 换成 `web`。需要锁定某次修复时，将 `main` 换成已验证的提交 SHA。直接使用上述 DSH 官方插件命令；原 `dsh-im install` 安装器若省略 `--source` 则仍默认安装上游。安装后重启对应 DSH Host，刷新管理页面；二维码图片无法生成时，点击“在飞书中打开”继续本轮授权。不要为此关闭包完整性校验或全局放开依赖脚本权限。下方 npm 命令安装的是上游稳定版，不包含此 fork 专有修复。
+需要锁定某次修复时，将 `main` 换成已验证的提交 SHA。直接使用上述 DSH 官方插件命令；原 `dsh-im install` 安装器若省略 `--source` 则仍默认安装上游。安装后重启对应 DSH Host，刷新管理页面；二维码图片无法生成时，点击“在飞书中打开”继续本轮授权。不要为此关闭包完整性校验或全局放开依赖脚本权限。下方 npm 命令安装的是上游稳定版，不包含此 fork 专有修复。
 
 推荐从 npm 安装已发布的稳定版本 **`@xmanrui/dsh-im`**。请按实际使用的运行方式选择对应命令：
 

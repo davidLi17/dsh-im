@@ -170,17 +170,21 @@ After the model calls the file-return tool, the plugin hands the specified file 
 
 ## Installation
 
-### davidLi17 Feishu fix build (5.6.0-lhg.2)
+### davidLi17 custom sync build (5.7.0-lhg.1)
 
 This build sends same-chat quoted images and rich-post images with the current question through the existing image admission pipeline, sharing count/size limits, resizing and original-file fallback for models without vision. It does not fetch cross-chat media, recurse through reply chains or download quoted ordinary files. The previous QR-link authorization and safe diagnostics fixes remain intact.
 
-These fork-specific fixes are not published to npm. In the DSH Desktop terminal, run:
+This version also integrates upstream v5.7.0's bounded Feishu shutdown, QQ deferred replies, WeCom reconnect backoff, Slack Markdown recovery and qs update.
+
+This fork is not published to npm. **For DSH Desktop, prefer the plugin manager UI with Git source `github:davidLi17/dsh-im#main`**. Command-line Desktop management requires the CLI bundled with that Desktop installation and a fully exited App; an npm-installed `dsh` does not imply Desktop profile support.
+
+For DSH Web, run in the terminal environment that starts the current Harness:
 
 ```sh
-dsh plugin --profile desktop add -w 'github:davidLi17/dsh-im#main'
+dsh plugin --profile web add -w 'github:davidLi17/dsh-im#main'
 ```
 
-For DSH Web, replace `desktop` with `web`. To pin a verified revision, replace `main` with the verified commit SHA. Use the official DSH plugin command above; the original `dsh-im install` wrapper still defaults to upstream unless `--source` is supplied. Restart the corresponding DSH Host and refresh management pages. If the QR image fails, use the official authorization link to continue the same attempt. Do not disable package integrity checks or globally allow dependency scripts. The npm commands below install the upstream stable release, not this fork's fixes.
+To pin a verified revision, replace `main` with the verified commit SHA. Use the official DSH plugin command above; the original `dsh-im install` wrapper still defaults to upstream unless `--source` is supplied. Restart the corresponding DSH Host and refresh management pages. If the QR image fails, use the official authorization link to continue the same attempt. Do not disable package integrity checks or globally allow dependency scripts. The npm commands below install the upstream stable release, not this fork's fixes.
 
 Install the published stable release of **`@xmanrui/dsh-im`** from npm (recommended). Choose the command for the application you use:
 
