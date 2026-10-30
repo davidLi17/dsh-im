@@ -6,6 +6,15 @@ This file records the notable changes in each dsh-im release. Its format follows
 
 ## [Unreleased]
 
+## [26.10.31-lhg] - 2026-10-31
+
+### Fork fixes / 定制修复
+
+- 消息提交超时后按请求 ID 确认已执行或已入队的记录，确认成功继续等待回复；未确认时明确提醒不要立即重复发送。等价吸收上游 #384 / d0b15f14269ac95ea807fcf601ade4e61e6b74fd。
+- `/session` 绑定不存在的会话时直接提示找不到会话，避免反复重试。吸收 #482 / 3b11ba3118ea513779f5de9e88778c89545a6d5a。
+- 飞书绑定 DS Bot 后，模型与思考强度切换通过 DS Bot 正常更新，并保留取消语义。吸收 #490 / bbccf64ff6781bdf83a98541ff72bda22bc90cd7。
+- 保留本 Fork 的授权链接、安全诊断、引用图片与全部既有渠道；不扩大引用普通文件下载或访问权限。仅发布本 Fork，未发布 npm。
+
 ## [5.7.0-lhg.1] - 2026-10-27
 
 ### Fork integration / 定制合入
