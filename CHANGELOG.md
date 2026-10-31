@@ -6,6 +6,15 @@ This file records the notable changes in each dsh-im release. Its format follows
 
 ## [Unreleased]
 
+## [26.10.31-lhg.2] - 2026-10-31
+
+### Fork fixes / 定制修复
+
+- 飞书模型卡按每页 20 个分页，并提供思考强度与默认等级下拉；切换后保留原卡片与页码。功能等价吸收 #491 / 40b50eeafa05c996dc736530cda1f655143dbcfa。
+- 邮箱 IMAP 断开后由现有轮询自动重连；保留游标，正文读取失败不再静默跳过未读邮件。功能等价吸收 #493 / 4f1e4255b17c44cdbf4f8ae65557678cf65f0a3d。
+- 构建工具 esbuild 从 0.25.9 升级至 0.28.2，采用二进制下载回退的完整性检查及编译修复。React / React DOM / React Test Renderer 保持与 DSH 宿主兼容的 18.3.1；semver 7.8.5 已是最新。
+- 保留 DS Bot 模型切换与取消、引用图片、二维码授权链接、安全诊断和现有渠道权限；不增加引用文件下载或预设工作区分组。
+
 ## [26.10.31-lhg] - 2026-10-31
 
 ### Fork fixes / 定制修复
