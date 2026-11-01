@@ -170,7 +170,9 @@ After the model calls the file-return tool, the plugin hands the specified file 
 
 ## Installation
 
-### davidLi17 custom sync build (26.11.1-lhg)
+### davidLi17 custom sync build (26.11.1-lhg.2)
+
+This patch allows natural replies without mandatory prepared/queued delivery narration, while retaining truthful status and delivery failure notices. See the [maintenance record](docs/fork-sync-2026-11-1-2.md).
 
 This release adds Feishu Goal-round progress/results while rejected inbound messages cannot change reply routing, and keeps parent-only email replies in the original session. See the [maintenance record](docs/fork-sync-2026-11-1.md).
 

@@ -6,6 +6,12 @@ This file records the notable changes in each dsh-im release. Its format follows
 
 ## [Unreleased]
 
+## [26.11.1-lhg.2] - 2026-11-01
+
+### Fork fixes / 定制修复
+
+- 文件注册工具结果与注入上下文允许自然回复，不再强制播报 prepared/queued。若提及投递状态仍须准确；注册、正常投递和失败通知保持不变。
+
 ## [26.11.1-lhg] - 2026-11-01
 
 ### Fork fixes / 定制修复

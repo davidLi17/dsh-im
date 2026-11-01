@@ -458,7 +458,10 @@ test('Host installer exposes the tool but only guides the current owned IM Turn'
   assert.match(definition.description, /host present tool/);
   assert.match(definition.description, /Existing and newly created files are both valid/);
   assert.match(definition.description, /Success means queued, not sent/);
-  assert.match(definition.output.render({}, { fileName: 'result.zip', size: 123 })[0].text, /has not been sent yet/);
+  const rendered = definition.output.render({}, { fileName: 'result.zip', size: 123 })[0].text;
+  assert.match(rendered, /registration does not confirm delivery/);
+  assert.match(rendered, /You do not need to mention delivery status in your reply/);
+  assert.match(rendered, /If you mention it, describe it as prepared or queued, not sent or received/);
   assert.equal(context.name, 'dsh-im:return-file');
   const session = { id: 'im-session' };
   const assembly = { agent: { session } };
@@ -473,6 +476,10 @@ test('Host installer exposes the tool but only guides the current owned IM Turn'
   observe('user/message', { source: { rpcId: 'plain-rpc-id' } });
   assert.match(context.text(assembly), /Existing files can be sent directly/);
   assert.match(context.text(assembly), /after your turn finishes/);
+  assert.match(context.text(assembly), /registration does not confirm delivery/);
+  assert.match(context.text(assembly), /You do not need to mention delivery status in your reply/);
+  assert.match(context.text(assembly), /If you mention it, describe it as prepared or queued, not sent or received/);
+  assert.match(context.text(assembly), /The channel reports delivery failures separately/);
   assert.equal(context.text({ agent: { session: { id: 'web-session' } } }), '');
   observe('turn/end', { turn: 1 });
   observe('turn/start', { turn: 2 });

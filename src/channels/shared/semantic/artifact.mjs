@@ -694,7 +694,7 @@ export function createOutboundArtifactTool({ registry = outboundArtifactRegistry
       },
       render: (_args, value) => [{
         type: 'text',
-        text: `Registered ${value.fileName} (${value.size} bytes) for IM delivery after this turn. The file has not been sent yet; describe it as prepared or queued, not sent or received.`,
+        text: `Registered ${value.fileName} (${value.size} bytes) for IM delivery after this turn. File registration does not confirm delivery. You do not need to mention delivery status in your reply. If you mention it, describe it as prepared or queued, not sent or received.`,
       }],
     },
     async execute(args, exec) {
@@ -754,7 +754,7 @@ export function installOutboundArtifactTool(ctx, { registry = outboundArtifactRe
     name: 'dsh-im:return-file',
     order: 115,
     text: (assembly) => registry.hasActiveConsumer(assembly?.agent?.session)
-      ? `When the user asks to receive a file or generated image, call ${OUTBOUND_ARTIFACT_TOOL} with its path. Existing files can be sent directly; do not recreate or rename a file solely for delivery. This tool only registers the file; the channel uploads and sends it after your turn finishes. In your reply say the file is prepared or queued, never that it has already been sent or received. The channel reports delivery failures separately.`
+      ? `When the user asks to receive a file or generated image, call ${OUTBOUND_ARTIFACT_TOOL} with its path. Existing files can be sent directly; do not recreate or rename a file solely for delivery. This tool only registers the file; the channel uploads and sends it after your turn finishes. File registration does not confirm delivery. You do not need to mention delivery status in your reply. If you mention it, describe it as prepared or queued, not sent or received. The channel reports delivery failures separately.`
       : '',
   });
   return true;
