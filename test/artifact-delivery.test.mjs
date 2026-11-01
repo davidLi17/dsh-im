@@ -106,6 +106,43 @@ test('image artifacts prefer the native image sender', async (t) => {
   await assertReleased(artifact);
 });
 
+test('unknown file extensions sniff snapshot image headers without changing bytes or known types', async (t) => {
+  const png = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+jD1sAAAAASUVORK5CYII=', 'base64');
+  const signatures = [
+    ['original', png, 'image/png'],
+    ['jpeg', Buffer.from('ffd8ffe000104a4649460001', 'hex'), 'image/jpeg'],
+    ['gif87', Buffer.from('GIF87a\x01\x00\x01\x00'), 'image/gif'],
+    ['gif89', Buffer.from('GIF89a\x01\x00\x01\x00'), 'image/gif'],
+    ['webp.unknown', Buffer.from('52494646100000005745425056503820', 'hex'), 'image/webp'],
+    ['known.txt', png, 'text/plain'],
+    ['known.PNG', Buffer.from('unchanged extension behavior'), 'image/png'],
+    ['plain', Buffer.from('ordinary file'), 'application/octet-stream'],
+    ['empty', Buffer.alloc(0), 'application/octet-stream'],
+    ['short-png', png.subarray(0, 7), 'application/octet-stream'],
+    ['short-jpeg', Buffer.from('ffd8', 'hex'), 'application/octet-stream'],
+    ['short-gif', Buffer.from('GIF89'), 'application/octet-stream'],
+    ['short-webp', Buffer.from('RIFF1234WEB'), 'application/octet-stream'],
+    ['riff-wave', Buffer.from('RIFF1234WAVE'), 'application/octet-stream'],
+  ];
+  for (const [name, bytes, mediaType] of signatures) {
+    const artifact = await committedArtifact(t, name, bytes);
+    const calls = [];
+    const send = (kind) => async (file) => {
+      assert.equal(file.mediaType, mediaType, name);
+      assert.equal(file.fileName, name);
+      assert.deepEqual(file.bytes, bytes, name);
+      calls.push(kind);
+      return { id: name };
+    };
+    await deliverOutboundArtifacts({
+      artifacts: [artifact], channelKey: 'test',
+      sendImage: send('image'), sendFile: send('file'),
+    });
+    assert.deepEqual(calls, [mediaType.startsWith('image/') ? 'image' : 'file'], name);
+    await assertReleased(artifact);
+  }
+});
+
 test('an image uses file delivery when the channel has no image sender', async (t) => {
   const artifact = await committedArtifact(t, 'result.jpg', Buffer.from([1]));
   let fileCalls = 0;

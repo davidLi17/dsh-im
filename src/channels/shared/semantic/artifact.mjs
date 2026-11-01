@@ -87,8 +87,18 @@ function safeFileName(value) {
   return [...cleaned].slice(0, 255).join('');
 }
 
-function mediaTypeFor(name) {
-  return MIME_BY_EXTENSION.get(extname(name).toLowerCase()) ?? 'application/octet-stream';
+function mediaTypeFor(name, header) {
+  const knownType = MIME_BY_EXTENSION.get(extname(name).toLowerCase());
+  if (knownType) return knownType;
+  // Inspect only the prefix collected while hashing the managed snapshot.
+  // Never reopen the source path or trust a caller-supplied media type.
+  if (header.length >= 8 && header.subarray(0, 8).equals(Buffer.from('89504e470d0a1a0a', 'hex'))) return 'image/png';
+  if (header.length >= 3 && header[0] === 0xff && header[1] === 0xd8 && header[2] === 0xff) return 'image/jpeg';
+  const gif = header.toString('latin1', 0, 6);
+  if (header.length >= 6 && (gif === 'GIF87a' || gif === 'GIF89a')) return 'image/gif';
+  if (header.length >= 12 && header.toString('latin1', 0, 4) === 'RIFF'
+    && header.toString('latin1', 8, 12) === 'WEBP') return 'image/webp';
+  return 'application/octet-stream';
 }
 
 function sha256(bytes) {
@@ -113,6 +123,8 @@ async function hashFile(path, signal) {
   try {
     handle = await open(path, fsConstants.O_RDONLY);
     const hash = createHash('sha256');
+    const prefix = Buffer.alloc(12);
+    let prefixLength = 0;
     const stream = handle.createReadStream({
       autoClose: false,
       highWaterMark: ARTIFACT_READ_CHUNK_BYTES,
@@ -121,8 +133,11 @@ async function hashFile(path, signal) {
     for await (const chunk of stream) {
       signal?.throwIfAborted();
       hash.update(chunk);
+      if (prefixLength < prefix.length) {
+        prefixLength += chunk.copy(prefix, prefixLength, 0, Math.min(chunk.length, prefix.length - prefixLength));
+      }
     }
-    return hash.digest('hex');
+    return { digest: hash.digest('hex'), header: prefix.subarray(0, prefixLength) };
   } finally {
     await handle?.close().catch(() => undefined);
   }
@@ -216,11 +231,12 @@ async function snapshotFile(workspace, requestedPath, signal) {
       throw artifactError('artifact-unavailable', 'The file could not be prepared for delivery.');
     }
     const fileName = safeFileName(basename(candidate));
+    const { digest, header } = await hashFile(storagePath, signal);
     return Object.freeze({
       fileName,
-      mediaType: mediaTypeFor(fileName),
+      mediaType: mediaTypeFor(fileName, header),
       size,
-      digest: await hashFile(storagePath, signal),
+      digest,
       storagePath,
     });
   } catch (error) {
