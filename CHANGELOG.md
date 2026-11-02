@@ -6,6 +6,14 @@ This file records the notable changes in each dsh-im release. Its format follows
 
 ## [Unreleased]
 
+## [26.11.2-lhg] - 2026-11-02
+
+### Selected upstream fixes / 选择性上游修复
+
+- DS Bot 绑定会话切换模型但不指定思考等级、或恢复默认等级时，按实际会话读回默认等级，不再成功后误报失败。吸收 #513 / 34c8b0f3b1a0a8a8c93f44c2b16a6703228c814a。
+- DS Bot 已接收的消息在会话归档或交接后按原 prompt RPC 身份继续等待，不重复提交；保留取消、附件暂存、进度和超时补发，避免把其他回合结果当作回复。选择性吸收 #499 / 804be5f7e7a7f0a4e168a22b54e35bc6850b6650。
+- 保留无扩展名图片识别、可选投递状态播报及全部渠道定制，不引入非 IM 会话主动回传或新访问策略。
+
 ## [26.11.1-lhg.2] - 2026-11-01
 
 ### Fork fixes / 定制修复
