@@ -6,6 +6,13 @@ This file records the notable changes in each dsh-im release. Its format follows
 
 ## [Unreleased]
 
+## [26.11.3-lhg] - 2026-11-03
+
+### Selected upstream fixes / 选择性上游修复
+
+- 模型列表读取失败不再误报模型不存在；保存失败关闭菜单并显示脱敏诊断，保留原选择并允许重试。功能等价吸收 #521 / d2f2703dbd2d7adb73fc04b56a12460a39f282dd，不建立上游 Git 祖先关系。
+- 保留无扩展名图片识别、可选投递状态播报及全部渠道、权限定制。
+
 ## [26.11.2-lhg] - 2026-11-02
 
 ### Selected upstream fixes / 选择性上游修复
