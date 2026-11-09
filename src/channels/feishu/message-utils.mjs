@@ -605,6 +605,129 @@ export function splitText(text, maxChars = 9000) {
   return chunks;
 }
 
+// Feishu cards parse Markdown images into `img` elements whose key must be an
+// uploaded Feishu image key. A local path (macOS `/tmp/x.png`, `~/x.png`,
+// `file:///x.png`, Windows `C:\\x.png`) is not one, and the whole card update is
+// rejected with 230099 / 200570 "card contains invalid image keys" — which
+// silently freezes a step card. Degrade those images to their alt text.
+// Feishu renders an image element only from a hosted URL or an uploaded
+// `img_key`. Everything else — absolute paths, `file:` URLs, Windows drives,
+// bare relative paths such as `06-log/shot.png`, `data:` URIs — reaches the
+// card as an invalid image key: the whole card is rejected and the answer
+// degrades to plain text, so those targets become their alt text instead.
+const REMOTE_IMAGE_TARGET = /^(?:https?:)?\/\//i;
+const FEISHU_IMAGE_KEY = /^img_[A-Za-z0-9_-]+$/;
+
+export function isLocalImageTarget(target) {
+  if (typeof target !== 'string') return false;
+  const trimmed = target.trim();
+  if (!trimmed) return false;
+  return !REMOTE_IMAGE_TARGET.test(trimmed) && !FEISHU_IMAGE_KEY.test(trimmed);
+}
+
+export function stripLocalImageMarkdown(text) {
+  if (typeof text !== 'string' || !text.includes('![')) return text;
+  let output = '';
+  let index = 0;
+  let fence = null;
+  while (index < text.length) {
+    // Fenced code is literal, including image examples and shorter fences.
+    if (index === 0 || text[index - 1] === '\n') {
+      const end = text.indexOf('\n', index);
+      const next = end < 0 ? text.length : end + 1;
+      const line = text.slice(index, next);
+      const marker = /^ {0,3}(`{3,}|~{3,})([^\r\n]*)/.exec(line);
+      if (fence) {
+        if (marker && marker[1][0] === fence[0]
+          && marker[1].length >= fence.length && !marker[2].trim()) fence = null;
+        output += line;
+        index = next;
+        continue;
+      }
+      if (marker && (marker[1][0] !== '`' || !marker[2].includes('`'))) {
+        fence = marker[1];
+        output += line;
+        index = next;
+        continue;
+      }
+      // Indented code is literal too; preserving it is safer than changing it.
+      if (/^(?: {4}|\t)/.test(line)) {
+        output += line;
+        index = next;
+        continue;
+      }
+    }
+    if (text[index] === '\\') {
+      output += text.slice(index, index + 2);
+      index += 2;
+      continue;
+    }
+    if (text[index] === '`') {
+      let end = index + 1;
+      while (text[end] === '`') end += 1;
+      const size = end - index;
+      let close = end;
+      let matched = false;
+      while (close < text.length) {
+        if (text[close] !== '`') { close += 1; continue; }
+        let after = close + 1;
+        while (text[after] === '`') after += 1;
+        if (after - close === size) {
+          output += text.slice(index, after);
+          index = after;
+          matched = true;
+          break;
+        }
+        close = after;
+      }
+      if (matched) continue;
+      output += text.slice(index, end);
+      index = end;
+      continue;
+    }
+    if (text.startsWith('![', index)) {
+      let cursor = index + 2;
+      let brackets = 1;
+      while (cursor < text.length && brackets > 0) {
+        if (text[cursor] === '\\') { cursor += 2; continue; }
+        if (text[cursor] === '[') brackets += 1;
+        if (text[cursor] === ']') brackets -= 1;
+        cursor += 1;
+      }
+      const altEnd = cursor - 1;
+      if (brackets === 0 && text[cursor] === '(') {
+        const targetStart = ++cursor;
+        let depth = 1;
+        let angle = false;
+        let quote = null;
+        while (cursor < text.length && text[cursor] !== '\n') {
+          const ch = text[cursor];
+          if (ch === '\\') { cursor += 2; continue; }
+          if (quote) { if (ch === quote) quote = null; }
+          else if (angle) { if (ch === '>') angle = false; }
+          else if (ch === '<' && !text.slice(targetStart, cursor).trim()) angle = true;
+          else if ((ch === '"' || ch === "'") && /\s/.test(text[cursor - 1])) quote = ch;
+          else if (ch === '(') depth += 1;
+          else if (ch === ')' && --depth === 0) break;
+          cursor += 1;
+        }
+        if (depth === 0) {
+          const rawTarget = text.slice(targetStart, cursor).trim();
+          const target = rawTarget.replace(/\s+(?:"[^"]*"|'[^']*')\s*$/, '')
+            .trim().replace(/^<(.*)>$/, '$1').trim();
+          if (isLocalImageTarget(target)) {
+            output += text.slice(index + 2, altEnd).trim() || target;
+            index = cursor + 1;
+            continue;
+          }
+        }
+      }
+    }
+    output += text[index++];
+  }
+  return output;
+}
+
 export function isBotSender(event) {
   return event?.sender?.sender_type === 'bot';
 }

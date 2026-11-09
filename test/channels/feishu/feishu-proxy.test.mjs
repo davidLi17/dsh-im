@@ -1,7 +1,8 @@
 import assert from 'node:assert/strict';
 import { once } from 'node:events';
-import { createServer, request } from 'node:http';
-import { connect } from 'node:net';
+import { Agent as HttpAgent, createServer, request } from 'node:http';
+import { Agent as HttpsAgent } from 'node:https';
+import { Socket, connect } from 'node:net';
 import test from 'node:test';
 import * as Lark from '@larksuiteoapi/node-sdk';
 import { createFeishuWebSocketAgent } from '../../../plugin-src/host/channels/feishu/production.mjs';
@@ -28,7 +29,7 @@ function restoreEnvironment(snapshot) {
 
 test('Feishu verification uses the SDK HTTP client through HTTPS_PROXY', {
   timeout: 5000,
-}, async () => {
+}, async (t) => {
   const proxyHits = [];
   const proxy = createServer((request, response) => {
     proxyHits.push(request.url);
@@ -39,6 +40,21 @@ test('Feishu verification uses the SDK HTTP client through HTTPS_PROXY', {
     socket.end('HTTP/1.1 502 Bad Gateway\r\nContent-Length: 0\r\n\r\n');
   });
   const proxyPort = await listen(proxy);
+  // Keep the SDK's HTTPS_PROXY selection under test without inheriting Node's
+  // process-wide automatic proxy agent. Guard the socket boundary as well:
+  // Axios may create its own CONNECT agent instead of using these agents.
+  const originalConnect = Socket.prototype.connect;
+  const guardedConnect = t.mock.method(Socket.prototype, 'connect', function (...args) {
+    // Node internals may pass the already-normalized [options, callback] tuple.
+    const options = Array.isArray(args[0]) ? args[0][0] : args[0];
+    assert.equal(typeof options, 'object', 'the fixture requires explicit socket options');
+    assert.equal(options?.host ?? options?.hostname, '127.0.0.1',
+      'verification may only connect to the local fake proxy');
+    assert.equal(Number(options.port), proxyPort, 'verification must use the fake proxy port');
+    return originalConnect.apply(this, args);
+  });
+  const localProxyAgent = new HttpAgent();
+  const noDirectTlsAgent = new HttpsAgent();
   const environmentKeys = ['https_proxy', 'HTTPS_PROXY', 'no_proxy', 'NO_PROXY'];
   const environment = new Map(environmentKeys.map((key) => [key, process.env[key]]));
 
@@ -52,11 +68,20 @@ test('Feishu verification uses the SDK HTTP client through HTTPS_PROXY', {
     await assert.rejects(verifyFeishuApp({
       appId: 'cli_0000000000000000',
       appSecret: 'local-proxy-test-only',
-      httpInstance: Lark.defaultHttpInstance,
+      httpInstance: {
+        request: (config) => Lark.defaultHttpInstance.request({
+          ...config,
+          httpAgent: localProxyAgent,
+          httpsAgent: noDirectTlsAgent,
+        }),
+      },
       timeoutMs: 1000,
     }));
   } finally {
     restoreEnvironment(environment);
+    localProxyAgent.destroy();
+    noDirectTlsAgent.destroy();
+    guardedConnect.mock.restore();
     await close(proxy);
   }
 

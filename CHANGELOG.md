@@ -6,6 +6,16 @@ This file records the notable changes in each dsh-im release. Its format follows
 
 ## [Unreleased]
 
+## [26.11.9-lhg] - 2026-11-09
+
+### Selected upstream fixes / 选择性上游修复
+
+- 微信成功插入正在进行的任务后不再重复发送“已提交”回执，排队与失败提示保持不变。选择性吸收 #540 / 29af086。
+- 飞书卡片失败时以富文本保留最终答案的 Markdown，长代码块分片保留围栏和缩进。选择性吸收 #399 / c471cb8。
+- 飞书过程卡中的本地图片链接降级为文字，Goal 过程卡封卡失败时回传本轮结果，避免答案丢失。选择性吸收 #518 / 1bf8532。
+- 二维码加载使用原生 CommonJS require，避免插件热重载后生成二维码失败。选择性吸收 fc2ceab / issue #537。
+- 保留全部渠道、二维码官方链接降级、引用图片、无扩展名图片识别、可选投递状态播报、原访问限制和取消语义。不发布 npm，不改账号、权限或工作流。
+
 ## [26.11.3-lhg] - 2026-11-03
 
 ### Selected upstream fixes / 选择性上游修复
