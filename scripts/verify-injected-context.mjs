@@ -1,5 +1,6 @@
 /** Verify the built Host hook against a built DSH's real JSONL persistence. */
 import assert from 'node:assert/strict';
+import { existsSync } from 'node:fs';
 import { mkdtemp, rm } from 'node:fs/promises';
 import { createRequire } from 'node:module';
 import { tmpdir } from 'node:os';
@@ -13,11 +14,12 @@ import {
 
 if (!process.argv[2]) throw new Error('Pass the path of a built DSH checkout.');
 const harnessRoot = resolve(process.argv[2]);
-const fromHarness = createRequire(resolve(harnessRoot, 'packages/session/session-persistence-jsonl/package.json'));
+const fromHarness = createRequire(existsSync(resolve(harnessRoot, 'packages/session/session-persistence-jsonl/package.json')) ? resolve(harnessRoot, 'packages/session/session-persistence-jsonl/package.json') : resolve(harnessRoot, 'package.json'));
 const load = (name) => import(pathToFileURL(fromHarness.resolve(name)).href);
 const { Context } = await load('@deepseek-ai/cordis');
 const { SESSION_FORMAT_VERSION } = await load('@deepseek-ai/dsh-session');
-const { default: JsonlSessionPersistence } = await load('@deepseek-ai/dsh-session-persistence-jsonl');
+const persistenceModule = await load('@deepseek-ai/dsh-session-persistence-jsonl');
+const JsonlSessionPersistence = persistenceModule.default ?? persistenceModule;
 assert.equal(SESSION_FORMAT_VERSION, 4, 'This regression verifies Session format V4.');
 
 const directory = await mkdtemp(join(tmpdir(), 'dsh-im-context-'));

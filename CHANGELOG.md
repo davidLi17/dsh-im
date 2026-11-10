@@ -6,6 +6,14 @@ This file records the notable changes in each dsh-im release. Its format follows
 
 ## [Unreleased]
 
+## [26.11.10-lhg] - 2026-11-10
+
+### DSH 0.2.2-rc.1 verification / 宿主兼容验证
+
+- 对照官方 `dsh-v0.2.2-rc.1`（`66491b05e3f05ad35bcdd4f6cd7ed26041d9e3db`）核验设置 API 和插件入口，保留现有渠道、权限和用户定制。
+- 更新真实宿主验证脚本：支持 npm hoisted 布局，通过 rc.1 的 profile 配置切换语言，并可使用 `DSH_IM_VERIFY_TARBALL` 经官方 CLI 安装实际打包产物。
+- Declares DSH `0.2.2-rc.1` after isolated host verification. Verification does not use live IM accounts or claim real-channel delivery coverage. Existing historical declarations remain unchanged.
+
 ## [26.11.9-lhg] - 2026-11-09
 
 ### Selected upstream fixes / 选择性上游修复

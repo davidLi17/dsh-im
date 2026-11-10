@@ -2,6 +2,8 @@
  * Run the built plugin through an original DSH CLI and prove that bot messages
  * follow the DSH interface language (issue #185).
  *
+ * Set DSH_IM_VERIFY_TARBALL to install a packed plugin through the official CLI.
+ * Targets rc.1 profile-backed locale configuration.
  * Mirrors scripts/verify-lan-management.mjs: an isolated, empty home, the
  * unmodified CLI, and real HTTP against the public /api carrier. Nothing is
  * mocked — the assertions are on what the Host resolves from DSH's own
@@ -35,6 +37,7 @@ async function resolveHarness(root) {
   const layouts = [
     { kind: 'checkout', cli: 'apps/cli/lib/bin.js', base: 'packages/bundle/base', webApp: 'packages/bundle/web-app' },
     { kind: 'package', cli: 'lib/bin.js', base: 'node_modules/@deepseek-ai/dsh-base', webApp: 'node_modules/@deepseek-ai/dsh-web-app' },
+    { kind: 'hoisted-package', cli: 'lib/bin.js', base: '../dsh-base', webApp: '../dsh-web-app' },
   ];
   for (const layout of layouts) {
     const paths = {
@@ -60,7 +63,7 @@ let telegramMenu;
 const directory = await mkdtemp(join(tmpdir(), 'dsh-im-language-test-'));
 const home = join(directory, 'home');
 const profile = join(home, 'profiles/web');
-const settingsPath = join(home, 'settings.yaml');
+const settingsPath = join(profile, 'cordis.patch.yml');
 const mirrorPath = join(home, 'integrations/dsh-im/interface-language.json');
 const results = [];
 let child;
@@ -155,14 +158,13 @@ async function rpc(browser, channel, method, payload = {}) {
   return JSON.parse(response.body).result;
 }
 
-/** Rewrite only the `locale` section, leaving the rest of the document alone. */
+/** rc.1 stores locale in the profile configuration, not settings.yaml. */
 async function selectInterfaceLanguage(value) {
-  let raw = '';
-  try { raw = await readFile(settingsPath, 'utf8'); } catch { raw = ''; }
-  const withoutLocale = raw.replace(/(^|\n)locale:\n(?:[ \t]+.*\n?)*/g, '$1').trimEnd();
-  await writeFile(settingsPath, value === null
-    ? `${withoutLocale}\n`
-    : `${withoutLocale}\nlocale:\n  preference: ${value}\n`, 'utf8');
+  let entries = [];
+  try { entries = JSON.parse(await readFile(settingsPath, 'utf8')); } catch { /* empty profile */ }
+  entries = entries.filter(entry => entry.id !== 'locale');
+  entries.push({ id: 'locale', config: value === null ? {} : { preference: value } });
+  await writeFile(settingsPath, JSON.stringify(entries));
 }
 
 async function waitFor(describe, predicate, { attempts = 60, delayMs = 250 } = {}) {
@@ -197,7 +199,7 @@ try {
   const packages = {
     '@deepseek-ai/dsh-base': harness.base,
     '@deepseek-ai/dsh-web-app': harness.webApp,
-    '@xmanrui/dsh-im': pluginRoot,
+    ...(!process.env.DSH_IM_VERIFY_TARBALL ? { '@xmanrui/dsh-im': pluginRoot } : {}),
   };
   for (const [name, path] of Object.entries(packages)) {
     const target = join(profile, 'node_modules', name);
@@ -210,6 +212,29 @@ try {
     dependencies: Object.fromEntries(Object.entries(packages).map(([name, path]) => [name, `link:${path}`])),
     dsh: { profile: { bundles: Object.keys(packages) } },
   }));
+
+  // Optionally exercise the official plugin installer, rather than a source symlink.
+  if (process.env.DSH_IM_VERIFY_TARBALL) {
+    const tarball = resolve(process.env.DSH_IM_VERIFY_TARBALL);
+    await access(tarball);
+    await new Promise((resolveInstall, reject) => {
+      const install = spawn(process.execPath, [cli, 'plugin', '--profile', 'web', 'add', `file:${tarball}`], {
+        cwd: directory,
+        env: { ...Object.fromEntries(Object.entries(process.env).filter(([key]) => !/^DSH_/i.test(key) && !/(?:KEY|SECRET|TOKEN|PASSWORD)/i.test(key))), DSH_HOME: home, DSH_AGENTS_HOME: join(directory, '.agents'), DSH_TELEMETRY_DISABLED: '1', XDG_DATA_HOME: join(directory, 'data'), XDG_CACHE_HOME: join(directory, 'cache') },
+        stdio: ['ignore', 'pipe', 'pipe'],
+      });
+      const timeout = setTimeout(() => install.kill('SIGTERM'), 180_000);
+      install.once('close', () => clearTimeout(timeout));
+      let output = '';
+      install.stdout.on('data', chunk => { output += chunk; });
+      install.stderr.on('data', chunk => { output += chunk; });
+      install.on('error', reject);
+      install.on('exit', code => code === 0 ? resolveInstall() : reject(new Error(`plugin install failed (${code}): ${output}`)));
+    });
+    const installed = JSON.parse(await readFile(join(profile, 'package.json'), 'utf8'));
+    assert.ok(installed.dsh.profile.bundles.includes('@xmanrui/dsh-im'));
+    record('official CLI installs the packed plugin and registers its bundle', 'isolated web profile');
+  }
 
   // A Chinese interface selection, exactly as DSH's Language row stores it.
   await selectInterfaceLanguage('zh');
@@ -305,7 +330,7 @@ try {
   // Back-compatibility: an operator pin keeps winning and ignores DSH entirely.
   await stop();
   await writeFile(join(profile, 'cordis.patch.yml'),
-    '- id: xmanrui-dsh-im\n  config:\n    language: zh-CN\n');
+    JSON.stringify([{ id: 'xmanrui-dsh-im', config: { language: 'zh-CN' } }]));
   await selectInterfaceLanguage('en');
   const pinnedBrowser = await login(await start());
   const pinned = await rpc(pinnedBrowser, 'dsh-im-language', 'settings.language.get');

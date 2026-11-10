@@ -366,7 +366,7 @@ Startup configuration validation failures also include `file`, `field`, and `iss
 
 ## Local development
 
-The latest dsh-im follows the latest DSH, with DSH `0.2.1-rc.2` (Session format V4) as this update's supported baseline. New features and fixes do not add compatibility branches for older DSH versions; existing unrelated compatibility code remains in place. Older hosts should use the corresponding historical plugin release. `package.json` declares only the host versions actually verified for this build, without promising support for untested future releases. After upgrading the plugin, restart the Host and refresh the settings page so both sides use the same plugin build.
+The latest dsh-im follows the latest DSH, with DSH `0.2.2-rc.1` (Session format V4) as this update's supported baseline. New features and fixes do not add compatibility branches for older DSH versions; existing unrelated compatibility code remains in place. Older hosts should use the corresponding historical plugin release. `package.json` declares only the host versions actually verified for this build, without promising support for untested future releases. After upgrading the plugin, restart the Host and refresh the settings page so both sides use the same plugin build.
 
 DSH `0.2.1-rc.2` requires an explicit caller `peer` on internal Gateway requests. The shared adapter creates it through Host Connection, reuses it for unary and streaming calls across all channels, and disposes it when the plugin unloads. Live WeChat and QQ tests verified replies in both new and existing sessions.
 

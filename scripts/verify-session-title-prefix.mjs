@@ -2,6 +2,7 @@
 // LLM request or a running Host. Run:
 // node scripts/verify-session-title-prefix.mjs /path/to/dsh [all-prompts|first-prompt]
 import assert from 'node:assert/strict';
+import { existsSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import { resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
@@ -12,12 +13,13 @@ if (!process.argv[2]) throw new Error('Pass the path of a built DSH checkout.');
 const root = resolve(process.argv[2]);
 const automatic = process.argv[3] ?? 'all-prompts';
 assert.ok(['all-prompts', 'first-prompt'].includes(automatic));
-const fromHarness = createRequire(resolve(root, 'packages/session/session-title/package.json'));
+const fromHarness = createRequire(existsSync(resolve(root, 'packages/session/session-title/package.json')) ? resolve(root, 'packages/session/session-title/package.json') : resolve(root, 'package.json'));
 const load = (name) => import(pathToFileURL(fromHarness.resolve(name)).href);
 const { Context } = await load('@deepseek-ai/cordis');
 const { default: SessionStore, SessionId } = await load('@deepseek-ai/dsh-session');
 const { default: SessionProjectionRegistry } = await load('@deepseek-ai/dsh-session-projection');
 const { default: SessionTitleService, SessionTitleProviderId } = await load('@deepseek-ai/dsh-session-title');
+const { AgentRegistry } = await load('@deepseek-ai/dsh-agent');
 const { createUserMessage } = await load('@deepseek-ai/dsh-llm');
 
 const ctx = new Context();
@@ -25,6 +27,7 @@ const fibers = [];
 for (const [plugin, config] of [
   [SessionStore],
   [SessionProjectionRegistry],
+  [AgentRegistry],
   [SessionTitleService, { fallbackMaxWords: 10, fallbackMaxBytes: 60, maxTitleBytes: 60 }],
 ]) {
   const fiber = ctx.plugin(plugin, config);
@@ -45,7 +48,7 @@ Object.assign(internals, {
   installUpdateRpc: () => {}, installInboundTtlRpc: () => {},
   installDeliveryRpc: () => {}, installSessionSyncCoordinator: () => {},
 });
-const host = ctx.plugin(createImHostPlugin(internals));
+const host = ctx.plugin(createImHostPlugin(internals), { language: 'zh-CN' });
 fibers.push(host);
 await host.await();
 const settle = async () => {
