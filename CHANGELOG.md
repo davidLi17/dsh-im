@@ -6,6 +6,14 @@ This file records the notable changes in each dsh-im release. Its format follows
 
 ## [Unreleased]
 
+## [26.11.12-lhg] - 2026-11-12
+
+### DSH 0.2.2-rc.2 verification / 宿主兼容验证
+
+- 对照官方 `dsh-v0.2.2-rc.2`（`ddac96760b6edf8fa0fe17cbdcf0b512f4c12b2c`）源码核验插件使用的 API，不增加旧版宿主分支，不改渠道逻辑或安全策略。
+- 补充真实 Session 批量追加验证：批次完整发布后只装饰最新标题一次，保留用户标题来源和投影顺序。
+- Verify the existing IM package against the official rc.2 source build and retain the rc.1 regression lane. The rc.2 npm package was not available during verification; this is not a claim of a published rc.2 npm installation or live IM-account coverage. See `docs/verification/dsh-0.2.2-rc.2.md` for scope and reproduction.
+
 ## [26.11.10-lhg] - 2026-11-10
 
 ### DSH 0.2.2-rc.1 verification / 宿主兼容验证

@@ -1,6 +1,6 @@
 // Exercise the plugin against an actual built Harness checkout, without an
 // LLM request or a running Host. Run:
-// node scripts/verify-session-title-prefix.mjs /path/to/dsh [all-prompts|first-prompt]
+// node scripts/verify-session-title-prefix.mjs /path/to/dsh [all-prompts|first-prompt] [--batch-append]
 import assert from 'node:assert/strict';
 import { existsSync } from 'node:fs';
 import { createRequire } from 'node:module';
@@ -137,6 +137,36 @@ await creator.await();
 await settle();
 assert.equal(ctx.sessionTitle.get(feishu).title, '飞书 · 你好，你是谁？');
 assert.equal(ctx.sessionTitle.get(feishu).source.kind, 'user');
+
+// rc.2 commits the whole batch before publishing each event. The queued
+// decorator must read its final title, without writing during publication.
+if (process.argv.includes('--batch-append')) {
+  const batched = ctx.sessions.create(SessionId('feishu-batch-title-regression'));
+  const publications = [];
+  const stop = ctx.on('session/event', (current, event) => {
+    if (current === batched) publications.push({ seq: event.seq, size: current.snapshotEvents().length });
+  }, { global: true });
+  const appended = batched.append([
+    ['user/message', createUserMessage({
+      content: [{ type: 'text', text: '批处理消息' }],
+      source: { kind: 'user', rpcId: 'feishu-00000000-0000-4000-8000-000000000001' },
+    }), { surfaceOp: 'append' }],
+    ['session/title', { title: '旧标题', messageSeqs: [], source: { kind: 'user' } }],
+    ['session/title', { title: '最新标题', messageSeqs: [], source: { kind: 'user' } }],
+  ]);
+  assert.equal(appended.length, 3);
+  assert.deepEqual(publications.slice(0, 3), [
+    { seq: 0, size: 3 }, { seq: 1, size: 3 }, { seq: 2, size: 3 },
+  ]);
+  await settle();
+  assert.equal(ctx.sessionTitle.get(batched).title, '飞书 · 最新标题');
+  assert.equal(ctx.sessionTitle.get(batched).source.kind, 'user');
+  assert.equal(ctx.sessionProjections.stateOf(batched, 'title'), '飞书 · 最新标题');
+  assert.equal(batched.snapshotEvents().length, 4, 'the final title is decorated only once');
+  assert.deepEqual(publications.at(-1), { seq: 3, size: 4 });
+  stop();
+  console.log('PASS real Session batch append: complete publication, latest title, one prefix, and ordered projection');
+}
 
 const sourceEvents = session.snapshotEvents();
 for (const event of sourceEvents.filter((entry) => entry.type === 'session/title')) {
