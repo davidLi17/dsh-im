@@ -1,3 +1,9 @@
+## 26.11.18-lhg
+
+- 修复 ACCOUNT_QUOTA、PI_AI_ERROR、INVALID_REQUEST 被误报为未知失败，补齐中英俄提示。
+- 适配 DSH 0.2.2-rc.4 新增 CONTENT_REFUSED，正确提示内容拒绝。
+- 诊断仅保留已核实错误码，不暴露服务端解释或任意字符串；保留全部渠道与用户定制。
+
 # Changelog / 更新日志
 
 本文件记录 dsh-im 各正式版本的重要变化。格式参考 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，版本号遵循 [Semantic Versioning](https://semver.org/lang/zh-CN/)。
